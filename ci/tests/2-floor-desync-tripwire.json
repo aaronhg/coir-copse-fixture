@@ -1,0 +1,12 @@
+{
+  "name": "floor-desync-present",
+  "steps": [
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollCounter","hooks":{"replace":"()=>false"} },
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollDescend","hooks":{"replace":"()=>true"},"note":"force a descend so the shown depth must change" },
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollMiss","hooks":{"replace":"()=>false"} },
+    { "op":"press","ref":"Canvas/AttackBtn" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn","note":"slay → real floor 1 → 2" },{ "op":"sleep","ms":750 },
+    { "op":"eval","expr":"(()=>{const g=cc.find('Canvas/Game').getComponent('DungeonGame');const l=cc.find('Canvas/FloorLabel').getComponent(cc.Label);return l.string!=='Floor: '+g.floor;})()","note":"TRIPWIRE (bug #3): the floor label is stale — shown depth != real floor. Flips RED if the label is ever refreshed.","expect":{"value":true} }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "coir-copse-fixture-ci",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CI gate: coir (static ClickEvent map) × copse (live reachability) over the pre-built coir-copse-fixture game. No Cocos editor in the loop — it runs against ../build/web-mobile.",
+  "scripts": {
+    "serve": "node serve.mjs",
+    "rows": "node \"${COIR_CLI:-../../coir/src/cli.js}\" -C .. clickmap scene/fixture.scene -o json > coir-rows.json",
+    "suite": "node \"${COPSE_CLI:-../../copse/src/cli.js}\" run \"${GAME_URL:-http://127.0.0.1:8899/}\" tests --junit results/junit.xml --headed",
+    "gate": "node gate.mjs --headed",
+    "gate:update": "node gate.mjs --headed --update",
+    "selftest": "node selftest.mjs --headed",
+    "check": "npm run rows && npm run suite && npm run gate && npm run selftest"
+  },
+  "comment": [
+    "Zero runtime deps. The flow suite IS copse's own runner: `copse run <dir> --junit`.",
+    "COIR_CLI / COPSE_CLI env vars point at the two tools (default: sibling repos).",
+    "Local runs use --headed on purpose: headless Chrome renders Cocos via SwiftShader",
+    "(software WebGL) and cooks the machine. CI is headless — ephemeral, heat irrelevant."
+  ]
+}

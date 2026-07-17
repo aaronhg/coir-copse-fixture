@@ -1,0 +1,97 @@
+name: coir × copse gate
+
+# Two jobs, and no Cocos editor in either — the repo ships a PRE-BUILT web-mobile target
+# (commit it after `Project ▸ Build` in Creator):
+#   gate         serve build/web-mobile, run the coir×copse coverage join + copse flow suite
+#   deploy-demo  on main & only if the gate is green, publish that same build to GitHub Pages
+# so the hosted demo is always a build that passed the join.
+
+on: [push, pull_request]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest        # ships google-chrome at /usr/bin/google-chrome,
+    defaults:                     # which is exactly copse's Linux default — no browser setup needed.
+      run:
+        working-directory: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: Guard — the built game must be committed
+        run: test -f ../build/web-mobile/index.html
+          || (echo "::error::build/web-mobile/ is missing — run Project ▸ Build (web-mobile) in Cocos Creator and commit it." && exit 1)
+
+      # The two tools under test. Public repos assumed; if yours are private, add a PAT:
+      #   git clone https://x-access-token:${{ secrets.TOOLS_PAT }}@github.com/<you>/coir.git
+      - name: Fetch coir
+        run: git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
+      - name: Fetch + build copse
+        run: |
+          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
+
+      - name: Serve the built game
+        run: |
+          node serve.mjs 8899 &
+          npx --yes wait-on http://127.0.0.1:8899/ -t 30000
+
+      - name: coir — the static ClickEvent map (`coir clickmap`)
+        run: node /tmp/coir/src/cli.js -C .. clickmap scene/fixture.scene -o json > coir-rows.json
+
+      # Headless on purpose: a CI container has no display and is thrown away after the
+      # run, so SwiftShader's heat cost is moot. copse finds /usr/bin/google-chrome itself.
+      - name: Flow suite — copse's own runner (`copse run <dir> --junit`)
+        env: { COPSE_CLI: /tmp/copse/src/cli.js }
+        run: node "$COPSE_CLI" run http://127.0.0.1:8899/ tests --junit results/junit.xml
+
+      - name: Coverage gate — the coir × copse join (green / red-on-regression)
+        env: { COPSE_CLI: /tmp/copse/src/cli.js }
+        run: node gate.mjs --url=http://127.0.0.1:8899/
+
+      - name: Selftest — prove the gate can actually go red
+        if: always()
+        env: { COPSE_CLI: /tmp/copse/src/cli.js }
+        run: node selftest.mjs
+
+      - name: Publish test results
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: ci/results/junit.xml
+          check_name: coir × copse tests
+          annotate_only: true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: join-evidence
+          path: |
+            ci/results/junit.xml
+            ci/coir-rows.json
+
+  # Publish the SAME committed web-mobile to GitHub Pages — but ONLY after the gate is
+  # green, so the hosted demo is always a build that passed the coverage join. There's no
+  # editor build here either; it just uploads the static folder that's already in the repo.
+  # One-time setup: repo Settings ▸ Pages ▸ Source = "GitHub Actions".
+  deploy-demo:
+    needs: gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web-mobile   # Cocos 3.8 web-mobile uses relative paths → runs fine from the /<repo>/ Pages subpath
+      - id: deployment
+        uses: actions/deploy-pages@v4
+            ci/expected.json

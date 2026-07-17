@@ -1,0 +1,35 @@
+MIT License
+
+Copyright (c) 2026 Aaron
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+Art assets
+
+The MIT license above covers the source code only. All art under assets/art/
+is by Kenney (https://kenney.nl) and released under Creative Commons Zero (CC0
+1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/):
+
+  - Tiny Dungeon                 https://kenney.nl/assets/tiny-dungeon
+  - UI Pack - Pixel Adventure    https://kenney.nl/assets/ui-pack-pixel-adventure
+  - Game Icons                   https://kenney.nl/assets/game-icons
+
+CC0 places these assets in the public domain; attribution is appreciated but
+not required.

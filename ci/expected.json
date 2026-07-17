@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "kind": "dead-button",
+      "id": "Canvas/FleeBtn::null"
+    }
+  ],
+  "coveredIds": [
+    "Canvas/AttackBtn::attack",
+    "Canvas/MenuBtn::toggleMenu"
+  ]
+}

@@ -1,0 +1,41 @@
+
+#///////////////////////////
+# Cocos Creator 3D Project
+#///////////////////////////
+library/
+temp/
+local/
+profiles/
+native
+# Cocos build output is ignored — EXCEPT the web-mobile target, which we commit on
+# purpose so CI runs the gate without an editor build. (Re-build + commit it after edits.)
+/build/*
+!/build/web-mobile/
+#//////////////////////////
+# NPM
+#//////////////////////////
+node_modules/
+
+#//////////////////////////
+# VSCode
+#//////////////////////////
+.vscode/
+
+#//////////////////////////
+# WebStorm
+#//////////////////////////
+.idea/
+
+#//////////////////////////
+# Editor state & dev tooling (not part of the demo)
+#//////////////////////////
+.creator/
+extensions/
+.DS_Store
+
+#//////////////////////////
+# CI harness — generated artifacts (coir-rows.json is regenerated; expected.json is committed)
+#//////////////////////////
+ci/results/
+ci/coir-rows.json
+ci/node_modules/

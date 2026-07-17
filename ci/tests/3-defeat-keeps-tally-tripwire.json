@@ -1,0 +1,13 @@
+{
+  "name": "defeat-keeps-tally",
+  "steps": [
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollCounter","hooks":{"replace":"()=>true"},"note":"force every counter → deterministic death" },
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollDescend","hooks":{"replace":"()=>false"} },
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollMiss","hooks":{"replace":"()=>false"} },
+    { "op":"press","ref":"Canvas/AttackBtn" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn","note":"3rd hit slays the monster (tally → 1)" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn","note":"4th counter is fatal → the run resets" },{ "op":"sleep","ms":750 },
+    { "op":"get","sel":"Canvas/Game:DungeonGame.kills","note":"TRIPWIRE (bug #4): a new run keeps the old Defeated tally instead of resetting to 0. Flips RED if reset is fixed.","expect":{"value":1} }
+  ]
+}

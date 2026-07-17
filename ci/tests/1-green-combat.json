@@ -1,0 +1,14 @@
+{
+  "name": "green-combat",
+  "steps": [
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollCounter","hooks":{"replace":"()=>false"},"note":"tame RNG: monster never counters" },
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollDescend","hooks":{"replace":"()=>false"},"note":"tame RNG: stay on floor 1" },
+    { "op":"patch","sel":"Canvas/Game:DungeonGame.rollMiss","hooks":{"replace":"()=>false"},"note":"tame RNG: never miss" },
+    { "op":"press","ref":"Canvas/AttackBtn" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn" },{ "op":"sleep","ms":650 },
+    { "op":"press","ref":"Canvas/AttackBtn","note":"3 clean hits slay the floor-1 monster" },{ "op":"sleep","ms":750 },
+    { "op":"get","sel":"Canvas/Game:DungeonGame.hp","note":"no counter → full HP","expect":{"value":3} },
+    { "op":"get","sel":"Canvas/Game:DungeonGame.kills","note":"one kill","expect":{"value":1} },
+    { "op":"get","sel":"Canvas/Game:DungeonGame.enemyHp","note":"a fresh monster appears","expect":{"value":3} }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "menu-close-disabled",
+  "steps": [
+    { "op":"press","ref":"Canvas/MenuBtn","note":"open the settings menu (gear → x)" },{ "op":"sleep","ms":250 },
+    { "op":"eval","expr":"cc.find('Canvas/MenuPanel/CloseBtn').getComponent(cc.Button).interactable","note":"TRIPWIRE (bug #1): the x close button is left disabled (interactable:false). Flips RED if it's ever enabled.","expect":{"value":false} }
+  ]
+}
