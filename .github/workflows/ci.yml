@@ -71,6 +71,16 @@ jobs:
           node serve.mjs 8899 & SERVER=$!
           trap 'kill $SERVER 2>/dev/null || true' EXIT
           npx --yes wait-on "$URL" -t 30000
+
+          # Boot diagnostic through copse's OWN Chrome (not a standalone probe): dumps the WebGL
+          # renderer, the live scene's child count, and the GAME's console/pageerrors. If the scene
+          # never populates it exits non-zero so we fail FAST here with the diagnosis, instead of
+          # letting copse's boot-wait spin ~8× across the suite/gate/selftest (~15 min of nothing).
+          echo "::group::Boot diagnostic — copse Chrome: WebGL + scene + game console"
+          COPSE_DRIVER=/tmp/copse/src/drivers/puppeteer.js node boot-diag.mjs "$URL" && diag=0 || diag=$?
+          echo "::endgroup::"
+          if [ "$diag" != 0 ]; then echo "::error::scene did not boot in copse's Chrome (exit $diag) — see boot diagnostic above"; exit 1; fi
+
           rc=0
 
           echo "::group::coir — the static ClickEvent map (coir clickmap)"
