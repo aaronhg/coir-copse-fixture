@@ -32,14 +32,20 @@ jobs:
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
 
+      - name: Ensure xvfb (headful WebGL needs an X display)
+        run: command -v xvfb-run >/dev/null || { sudo apt-get update && sudo apt-get install -y xvfb; }
+
       # One step on purpose: the served game must outlive every command that drives it.
       # A backgrounded server in its own step is torn down when that step ends, so a gate
       # or selftest in a LATER step hits a dead port (the "RED-ALWAYS" failure mode). Here
       # the server is a child of THIS shell and the trap kills it only after all of it runs.
       #
-      # Headless on purpose: a CI container has no display and is thrown away after the
-      # run, so SwiftShader's heat cost is moot. copse finds /usr/bin/google-chrome itself.
-      - name: Serve + coir clickmap + flow suite + gate + selftest
+      # xvfb + HEADFUL on purpose: Chrome 137+ removed the headless software-WebGL fallback,
+      # and ANGLE needs an X11 display to initialise even for SOFTWARE rendering — so under
+      # pure --headless the Cocos WebGL canvas never boots (empty scene → 0 covered → the
+      # `bad-selector` failure). Drive headful Chrome (copse --headed) under a virtual
+      # framebuffer instead. Refs: chromium .../docs/gpu/swiftshader.md ; zenn.dev/syoyo 2026 memo.
+      - name: Serve + coir clickmap + flow suite + gate + selftest (xvfb + headful)
         env: { COPSE_CLI: /tmp/copse/src/cli.js, URL: 'http://127.0.0.1:8899/' }
         run: |
           set -u
@@ -47,25 +53,29 @@ jobs:
           node serve.mjs 8899 & SERVER=$!
           trap 'kill $SERVER 2>/dev/null || true' EXIT
           npx --yes wait-on "$URL" -t 30000
-          rc=0
 
-          echo "::group::coir — the static ClickEvent map (coir clickmap)"
-          node /tmp/coir/src/cli.js -C .. clickmap scene/fixture.scene -o json > coir-rows.json || rc=1
-          echo "::endgroup::"
+          # All Chrome-driving commands share ONE virtual X display; child node/chrome inherit $DISPLAY.
+          # COPSE_CLI/URL come from the step env → exported → the inner bash expands them.
+          xvfb-run -a bash -c '
+            set -u; rc=0
+            echo "::group::coir — the static ClickEvent map (coir clickmap)"
+            node /tmp/coir/src/cli.js -C .. clickmap scene/fixture.scene -o json > coir-rows.json || rc=1
+            echo "::endgroup::"
 
-          echo "::group::Flow suite — copse's own runner (copse run <dir> --junit)"
-          node "$COPSE_CLI" run "$URL" tests --junit results/junit.xml || rc=1
-          echo "::endgroup::"
+            echo "::group::Flow suite — copse run <dir> --junit --headed (headful under xvfb)"
+            node "$COPSE_CLI" run "$URL" tests --junit results/junit.xml --headed || rc=1
+            echo "::endgroup::"
 
-          echo "::group::Coverage gate — the coir × copse join (green / red-on-regression)"
-          node gate.mjs --url="$URL" || rc=1
-          echo "::endgroup::"
+            echo "::group::Coverage gate — the coir × copse join (green / red-on-regression)"
+            node gate.mjs --url="$URL" --headed || rc=1
+            echo "::endgroup::"
 
-          echo "::group::Selftest — prove the gate can actually go red"
-          node selftest.mjs --url="$URL" || rc=1
-          echo "::endgroup::"
+            echo "::group::Selftest — prove the gate can actually go red"
+            node selftest.mjs --url="$URL" --headed || rc=1
+            echo "::endgroup::"
 
-          exit $rc
+            exit $rc
+          '
 
       - name: Publish test results
         if: always()
