@@ -32,28 +32,40 @@ jobs:
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
 
-      - name: Serve the built game
-        run: |
-          node serve.mjs 8899 &
-          npx --yes wait-on http://127.0.0.1:8899/ -t 30000
-
-      - name: coir — the static ClickEvent map (`coir clickmap`)
-        run: node /tmp/coir/src/cli.js -C .. clickmap scene/fixture.scene -o json > coir-rows.json
-
+      # One step on purpose: the served game must outlive every command that drives it.
+      # A backgrounded server in its own step is torn down when that step ends, so a gate
+      # or selftest in a LATER step hits a dead port (the "RED-ALWAYS" failure mode). Here
+      # the server is a child of THIS shell and the trap kills it only after all of it runs.
+      #
       # Headless on purpose: a CI container has no display and is thrown away after the
       # run, so SwiftShader's heat cost is moot. copse finds /usr/bin/google-chrome itself.
-      - name: Flow suite — copse's own runner (`copse run <dir> --junit`)
-        env: { COPSE_CLI: /tmp/copse/src/cli.js }
-        run: node "$COPSE_CLI" run http://127.0.0.1:8899/ tests --junit results/junit.xml
+      - name: Serve + coir clickmap + flow suite + gate + selftest
+        env: { COPSE_CLI: /tmp/copse/src/cli.js, URL: 'http://127.0.0.1:8899/' }
+        run: |
+          set -u
+          mkdir -p results
+          node serve.mjs 8899 & SERVER=$!
+          trap 'kill $SERVER 2>/dev/null || true' EXIT
+          npx --yes wait-on "$URL" -t 30000
+          rc=0
 
-      - name: Coverage gate — the coir × copse join (green / red-on-regression)
-        env: { COPSE_CLI: /tmp/copse/src/cli.js }
-        run: node gate.mjs --url=http://127.0.0.1:8899/
+          echo "::group::coir — the static ClickEvent map (coir clickmap)"
+          node /tmp/coir/src/cli.js -C .. clickmap scene/fixture.scene -o json > coir-rows.json || rc=1
+          echo "::endgroup::"
 
-      - name: Selftest — prove the gate can actually go red
-        if: always()
-        env: { COPSE_CLI: /tmp/copse/src/cli.js }
-        run: node selftest.mjs
+          echo "::group::Flow suite — copse's own runner (copse run <dir> --junit)"
+          node "$COPSE_CLI" run "$URL" tests --junit results/junit.xml || rc=1
+          echo "::endgroup::"
+
+          echo "::group::Coverage gate — the coir × copse join (green / red-on-regression)"
+          node gate.mjs --url="$URL" || rc=1
+          echo "::endgroup::"
+
+          echo "::group::Selftest — prove the gate can actually go red"
+          node selftest.mjs --url="$URL" || rc=1
+          echo "::endgroup::"
+
+          exit $rc
 
       - name: Publish test results
         if: always()
@@ -71,6 +83,7 @@ jobs:
           path: |
             ci/results/junit.xml
             ci/coir-rows.json
+            ci/expected.json
 
   # Publish the SAME committed web-mobile to GitHub Pages — but ONLY after the gate is
   # green, so the hosted demo is always a build that passed the coverage join. There's no
@@ -94,4 +107,3 @@ jobs:
           path: build/web-mobile   # Cocos 3.8 web-mobile uses relative paths → runs fine from the /<repo>/ Pages subpath
       - id: deployment
         uses: actions/deploy-pages@v4
-            ci/expected.json
