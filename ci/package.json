@@ -1,9 +1,9 @@
 {
-  "name": "coir-copse-fixture-ci",
+  "name": "coir-copse-demo-ci",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "CI gate: coir (static ClickEvent map) × copse (live reachability) over the pre-built coir-copse-fixture game. No Cocos editor in the loop — it runs against ../build/web-mobile.",
+  "description": "CI gate: coir (static ClickEvent map) × copse (live reachability) over the pre-built coir-copse-demo game. No Cocos editor in the loop — it runs against ../build/web-mobile.",
   "scripts": {
     "serve": "node serve.mjs",
     "rows": "node \"${COIR_CLI:-../../coir/src/cli.js}\" -C .. clickmap scene/fixture.scene -o json > coir-rows.json",

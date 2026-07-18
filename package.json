@@ -2,7 +2,7 @@
   "creator": {
     "version": "3.8.6"
   },
-  "name": "coir-copse-fixture",
+  "name": "coir-copse-demo",
   "type": "3d",
   "uuid": "da160a05-f63a-4752-b454-889580217f62",
   "description": "Tiny-Dungeon fixture for the coir x copse UI-coverage demo (CC0 Kenney assets)."

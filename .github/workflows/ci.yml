@@ -119,10 +119,11 @@ jobs:
             ci/coir-rows.json
             ci/expected.json
 
-  # Publish the SAME committed web-mobile to GitHub Pages — but ONLY after the gate is
-  # green, so the hosted demo is always a build that passed the coverage join. There's no
-  # editor build here either; it just uploads the static folder that's already in the repo.
-  # One-time setup: repo Settings ▸ Pages ▸ Source = "GitHub Actions".
+  # Publish to GitHub Pages — ONLY after the gate is green, so the hosted demo is always a build
+  # that passed the coverage join. No editor build here either: it assembles the committed
+  # web-mobile + an IN-BROWSER test panel (copse's in-page engine + the flow scripts + coir's
+  # static rows) so a visitor can run the SAME suite live, client-side, against the game on the
+  # page. One-time setup: repo Settings ▸ Pages ▸ Source = "GitHub Actions".
   deploy-demo:
     needs: gate
     if: github.ref == 'refs/heads/main'
@@ -135,9 +136,24 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Assemble demo site (game + in-browser suite)
+        run: |
+          set -eu
+          git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
+          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )   # -> dist/copse.inject.js
+          SITE=_site
+          cp -r build/web-mobile "$SITE"                         # the game (relative paths → runs from the /<repo>/ subpath)
+          cp /tmp/copse/dist/copse.inject.js "$SITE/"            # copse's in-page engine (window.copse → __copse)
+          cp demo/testpanel.js "$SITE/"                          # the runner + panel UI
+          mkdir -p "$SITE/tests" && cp ci/tests/*.json "$SITE/tests/"   # the flow scripts (same as CI)
+          node /tmp/coir/src/cli.js -C . clickmap scene/fixture.scene -o json > "$SITE/coir-rows.json"  # coir's static rows
+          perl -0pi -e 's#</body>#<script src="copse.inject.js"></script>\n<script src="testpanel.js"></script>\n</body>#' "$SITE/index.html"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: build/web-mobile   # Cocos 3.8 web-mobile uses relative paths → runs fine from the /<repo>/ Pages subpath
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -1,12 +1,48 @@
-# coir × copse — a UI-coverage test fixture
+# coir × copse — catch UI that's *wired but unreachable*
 
-A tiny, self-contained **Cocos Creator 3.8** game, built as the fixture for the
-**coir × copse** UI-coverage demo. It's a real little game *and* a deliberate minefield:
-four UI bugs are buried in it so an automated gate can prove it catches them.
+[![CI](https://github.com/aaronhg/coir-copse-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/aaronhg/coir-copse-demo/actions/workflows/ci.yml)
+ · **▶ [Live demo](https://aaronhg.github.io/coir-copse-demo/)**
+ · **[How it was built](DEVELOPMENT.md)**
 
-> Tap **Attack** to trade blows with the monster. Slay it and a different (tougher) monster
-> appears; take too many counter-hits and you fall — then **Restart**. The ⚙ button opens a
-> settings strip. Monsters and heroes cycle through several sprites.
+**The question neither a static analyzer nor a UI test can answer alone:**
+*you wired a button in the editor — can a player actually reach it in the shipped build?*
+
+- **coir** reads the Cocos scene on disk → it knows a button is **wired** (its `clickEvents`
+  link a node to a handler), but it never runs the game.
+- **copse** drives the live canvas → it knows what's **reachable & pressable right now**, but
+  not what the editor *should* have wired.
+
+Join them on `(nodePath, method)` and you get the verdict neither has on its own:
+
+| coir: wired? | copse: reachable? | verdict |
+|:---:|:---:|---|
+| ✔ | ✔ | **covered** |
+| ✔ | blocked / not in this scene | ⚠️ **wired-but-unreachable** — a real defect |
+| — | pressable, no serialized handler | 💀 **dead button** |
+
+**The trick:** the join key `(nodePath, method)` **survives release minification** — a release
+build mangles the handler's component class to `t`/`e`, but the method name is a serialized
+string and coir still has the real names. So the correlation holds on a *shipped, minified*
+build, not just a dev one.
+
+This repo is the **proof**: a real Cocos Creator 3.8 game with four UI bugs deliberately
+planted, and a CI gate that catches every one. Here's what the gate prints:
+
+```text
+ wired (coir) : 4      covered : 2      unreached : 2
+   ·  [dead-button] Canvas/FleeBtn::null
+ ✓ matches expected.json — no regression
+```
+
+**Run it yourself:** the **[live demo](https://aaronhg.github.io/coir-copse-demo/)** ships this
+same suite as an in-page **▶ Run the suite** button — it drives the game in *your* browser (copse's
+in-page engine, no backend) and shows the pass/fail + coverage verdict live.
+
+![copse driving the live game — Attack, the monster dies, a tougher one fades in](docs/demo.gif)
+
+> The game itself: tap **Attack** to trade blows; slay a monster and a tougher one fades in;
+> take too many counter-hits and you fall. The ⚙ opens a settings strip. (Several monster and
+> hero sprites cycle.)
 
 ## The four buried bugs
 
@@ -21,68 +57,69 @@ The player's own HP and the enemy's HP are always correct — the bugs live in t
 (a disabled button, an unwired button, a stale label, a missed reset), which is exactly the
 class of defect a coverage gate is meant to surface.
 
+## The suite — watch it catch them
+
+The flow tests are plain JSON that copse's own runner (`copse run <dir>`) drives. Every step
+carries its intent *and* its assertion, so a test reads like a description of what should happen:
+
+```jsonc
+// ci/tests/1-green-combat.json — drive a clean win, assert the core loop
+{ "op":"patch", "sel":"Canvas/Game:DungeonGame.rollCounter", "hooks":{"replace":"()=>false"} }, // pin RNG: no counter
+{ "op":"press", "ref":"Canvas/AttackBtn" },                                     // ×3 → slay the floor-1 monster
+{ "op":"get", "sel":"Canvas/Game:DungeonGame.hp",      "expect":{ "value":3 } }, // took no damage
+{ "op":"get", "sel":"Canvas/Game:DungeonGame.kills",   "expect":{ "value":1 } }, // one kill
+{ "op":"get", "sel":"Canvas/Game:DungeonGame.enemyHp", "expect":{ "value":3 } }  // a fresh monster appeared
+```
+
+Each buried bug also gets a **tripwire** — a test that asserts the bug *still exists*:
+
+```jsonc
+// ci/tests/4-menu-close-disabled-tripwire.json — bug #1
+{ "op":"eval",
+  "expr":"cc.find('Canvas/MenuPanel/CloseBtn').getComponent(cc.Button).interactable",
+  "expect":{ "value":false } }   // asserts the ✕ is STILL disabled → flips RED the day it's fixed
+```
+
+So the suite is green today and turns **red the moment someone fixes a bug** — the fixture
+can't silently rot into correctness. Every push runs it headless:
+
+```text
+pass  1-green-combat            (12 steps)
+pass  2-floor-desync-tripwire   (10 steps)
+pass  3-defeat-keeps-tally…     (12 steps)
+pass  4-menu-close-disabled…    ( 3 steps)
+4/4 scripts passed   ·   coverage: 2 covered, 1 dead-button   ·   JUnit 37/37
+```
+
 ## Run it
 
-1. Open the project in **Cocos Creator 3.8.6**.
-2. Open `assets/scene/fixture.scene`.
-3. Press **Preview** (▶). It's the only scene in the project.
+- **Play it now** — the **[live demo](https://aaronhg.github.io/coir-copse-demo/)** (the exact
+  build CI publishes on every green push to `main`).
+- **In the editor** — open the project in **Cocos Creator 3.8.6**, open
+  `assets/scene/fixture.scene`, press **Preview** ▶ (it's the only scene).
 
-`assets/scripts/DungeonGame.ts` is the whole game (one component). The RNG hooks
-`rollCounter` / `rollDescend` / `rollMiss` are separate methods on purpose, so a driver can
-pin them for deterministic tests.
+`assets/scripts/DungeonGame.ts` is the whole game (one component); the RNG hooks
+`rollCounter`/`rollDescend`/`rollMiss` are separate methods on purpose, so a driver can pin them
+for deterministic tests.
 
-## CI — the coir × copse gate (`ci/`)
+## CI
 
-The gate runs against a **pre-built** `build/web-mobile/` — no Cocos editor in the loop,
-which is the whole reason it's CI-able. Build once (Creator ▸ *Project ▸ Build ▸ web-mobile*)
-and **commit the output**; CI serves the static files and drives them with headless Chrome.
+An **editor-less** gate: `coir clickmap` (static) × `copse coverage` (live), diffed against a
+committed baseline (`expected.json`), plus the flow suite and a selftest that proves the gate can
+go red — all headless on GitHub Actions, which then publishes the passing build to Pages.
 
-```
-coir clickmap    coir  → static ClickEvent map from fixture.scene   (→ ci/coir-rows.json)
-ci/gate.mjs      copse → live coverage, diffed vs expected.json      (green / red-on-regression)
-ci/selftest.mjs  proves the gate can actually go red
-ci/tests/        copse flow scripts — run as a suite by copse's own `copse run <dir> --junit`
-```
+**→ [docs/CI.md](docs/CI.md)** for the mechanics, the runner recipe (why it needs a software
+Vulkan device + a boot diagnostic), and running it locally.
 
-(The flow suite is copse's built-in runner, not a local script — `copse run <dir> --junit`
-emits the per-test JUnit that GitHub shows as PR checks.)
+## Assets & license
 
-Green normally, red on drift:
+All art is CC0 by **[Kenney](https://kenney.nl)** — Tiny Dungeon · UI Pack · Pixel Adventure ·
+Game Icons — byte-verified by md5; no other engine assets or sample content are bundled. Code
+(`DungeonGame.ts`) is MIT. See [LICENSE](LICENSE).
 
-- **coverage gate** — Attack + gear-menu are `covered`, Flee is a `dead-button` (#2),
-  Close/Restart `unreached`. A new dead/blocked button (or a covered one going unreachable)
-  fails it.
-- **green-combat** — drives a clean win and asserts HP / kills / enemy-HP — guards the core loop.
-- **tripwires** — one flow script per buried bug (#1 disabled ✕, #3 stale floor label,
-  #4 kept tally): each asserts the bug is *present* (so it's green) and flips **red** the
-  moment it's fixed, so the fixture can't silently rot into correctness.
+## Docs
 
-GitHub Actions (`.github/workflows/ci.yml`) never builds the project: `ubuntu-latest` already
-ships the Chrome copse needs, so it just clones coir + copse, serves `build/web-mobile`, and
-runs the suite → JUnit. (coir/copse are cloned from GitHub — if yours are private, add a PAT;
-see the workflow comment.)
-
-On a green push to `main`, a second job publishes that same `build/web-mobile/` to **GitHub
-Pages** — `https://<owner>.github.io/<repo>/` — so the live, playable demo is always a build
-that passed the gate. One-time: repo *Settings ▸ Pages ▸ Source = "GitHub Actions"*.
-
-Locally (no deps to install — the harness spawns the coir/copse CLIs): in `ci/`, start
-`npm run serve &`, then `COIR_CLI=… COPSE_CLI=… npm run check`. Runs `--headed` on purpose —
-headless Chrome renders Cocos via SwiftShader and cooks the machine; CI is headless because
-its container is ephemeral.
-
-## Assets — all CC0
-
-Art is from [Kenney](https://kenney.nl) (Creative Commons Zero, CC0):
-
-- **Tiny Dungeon** — floor, monsters, and heroes (`assets/art/kenney_tiny-dungeon`, `art/dungeon/hero.png`)
-- **UI Pack · Pixel Adventure** — the 9-sliced buttons (`assets/art/kenney_ui-pack-pixel-adventure`)
-- **Game Icons** — the menu icons (gear / home / return / star / cross) (`assets/art/kenney`)
-
-No third-party engine assets, sample content, or proprietary art are included — the project
-was stripped to exactly what this one scene uses.
-
-## License
-
-- **Code** (`DungeonGame.ts`): MIT — see [LICENSE](LICENSE).
-- **Art**: CC0, by Kenney (see above). Attribution appreciated but not required.
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** — how it was built + the CI-green investigation (three
+  stacked root causes).
+- **[docs/CI.md](docs/CI.md)** — the gate / suite / selftest, the GitHub Actions runner recipe,
+  and running it locally.
