@@ -19,8 +19,11 @@ coir clickmap     coir  → static ClickEvent map from fixture.scene   (→ ci/c
 ci/gate.mjs       copse → live coverage, diffed vs expected.json      (green / red-on-regression)
 ci/tests/         copse flow scripts — run as a suite by copse's own `copse run <dir> --junit`
 ci/selftest.mjs   proves the gate can actually go red
-ci/boot-diag.mjs  fast-fail boot check (why the scene won't come up, in ~1 min)
+copse doctor      copse → fast-fail boot check (why the scene won't come up, in ~1 min)
+copse affected    copse → which flow tests a diff touches (pure; drives the PR-scoped gate)
 ci/serve.mjs      static file server for build/web-mobile
+ci/ai-qa.mjs      Layer 2 — LLM plans a test → copse drives it → LLM judges → F5 freeze / F7 ×N (OPT-IN)
+ci/ai-qa.test.mjs zero-LLM tests for the F5 serializer + F7 aggregation
 ```
 
 ### Coverage gate (`gate.mjs`)
@@ -44,6 +47,32 @@ Seeds two regressions into a copy of the baseline and asserts the gate goes **re
 control that the pristine baseline stays **green**. A gate nobody has watched fail is a no-op you
 trust by accident.
 
+## Layer 2 — AI QA (`ci/ai-qa.mjs`, opt-in)
+
+Everything above is **zero-LLM**: it catches DEAD / BLOCKED buttons and coverage regressions. It
+cannot catch a *semantic* bug — a label that lies (#3), a tally that should have reset (#4). Those
+need a player who reasons about state. `ai-qa.mjs` is that player, and it's the demo's own test bed
+(it already knows the four planted bugs):
+
+- **explore (F4)** — an LLM *plans* a test from a risk goal; copse's `runHarness` drives it in real
+  Chrome (ref-based, with hard gates for reachable / drive / error) and records the executed steps.
+- **judge (F6)** — an LLM classifies the run `bug | inconclusive | ok`. "inconclusive" = *the plan*
+  never set up its precondition (not: the control is broken — that's a bug). copse's hard gates veto
+  a naive "looks fine" (a dead button can't pass on opinion).
+- **freeze (F5)** — a stable, *conclusive* semantic finding is serialized (RNG pins + steps +
+  observed as `expect`) into `ci/candidates/*.json` and **replayed with `copse run` to confirm it's
+  green** — a discovery becomes a permanent zero-LLM tripwire. Anything that doesn't replay green is
+  discarded, so no false tripwire lands. Review a candidate, then `git mv` it into `ci/tests/`.
+- **N-run (F7)** — the plan is stochastic, so each scenario runs N times: a finding in a *majority*
+  is stable (gate-worthy); a single hit is flaky (reported, not gated). `detection rate = stable / total`.
+
+The LLM seam is one function: **Anthropic API** (`ANTHROPIC_API_KEY` set, with an assistant-`{`
+prefill so the reply is always JSON) or the local **`claude -p`** in dev; **no key → Layer 2 is
+skipped** and only the zero-LLM gate runs. `ai-qa.test.mjs` locks the F5/F7 logic at zero token cost.
+
+Run it locally: `node ci/ai-qa.mjs <url> --runs 3 --freeze` (add `--headed` to watch). In CI it's a
+**separate, opt-in** workflow (below) — never every PR.
+
 ## The GitHub Actions runner recipe (`.github/workflows/ci.yml`)
 
 `ubuntu-latest` already ships the Chrome copse needs, so there's no browser setup — but there are
@@ -55,7 +84,7 @@ two non-obvious steps, both learned the hard way (DEVELOPMENT.md §7):
    `Internal Vulkan error (-3)`, WebGL is null, and the Cocos scene never builds. Fix:
    `apt-get install mesa-vulkan-drivers` (a software llvmpipe device). A tiny WebGL probe in that
    step prints the resulting renderer as ground truth.
-2. **A boot diagnostic gate** (`boot-diag.mjs`). Connects through copse's own Chrome and prints
+2. **A boot diagnostic gate** (`copse doctor`). Connects through copse's own Chrome and prints
    the WebGL renderer, the live scene's child count, and the game's own console/pageerrors — then
    **exits non-zero on an empty scene** so CI fails fast (~1 min) with the reason instead of
    spinning copse's boot-wait across the whole suite (~15 min).
@@ -68,6 +97,21 @@ coir + copse are cloned from GitHub at run time. If yours are private, swap the 
 ```yaml
 git clone https://x-access-token:${{ secrets.TOOLS_PAT }}@github.com/<you>/coir.git /tmp/coir
 ```
+
+## The opt-in AI QA workflow (`.github/workflows/ai-qa.yml`)
+
+Layer 2 costs tokens, so it is **not** part of the every-push `ci.yml` — it's a separate workflow
+you trigger from **Actions ▸ AI QA (Layer 2) ▸ Run workflow** (inputs: `runs`, `scenario`), with an
+optional nightly `schedule` commented in. It reuses the same runner recipe (Vulkan device + `copse
+doctor`), runs `ai-qa.mjs --freeze --report`, and:
+
+- renders the **detection table + token cost** on the run's summary page;
+- uploads an **`ai-qa-evidence`** artifact — the full log, `report.json` (every run's plan / trace /
+  verdict + usage + F5 outcomes), and any surviving candidate tripwires;
+- **`--fail-on missed`**: a flaky bug is reported, not red; a *fully-blind* bug (0/N) fails.
+
+No `ANTHROPIC_API_KEY` secret → the job writes a "skipped" summary and stops; fork PRs (which can't
+see secrets) degrade the same way. The zero-LLM gate stays the always-on floor.
 
 ## GitHub Pages — the live demo
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // F2 — the diff-gate (the layered trigger). Given a change set, decide whether there is any UI
-// surface to test; if so, run ONLY the related flow tests (approach A) plus the F3 coverage-
+// surface to test; if so, run ONLY the affected flow tests (approach A) plus the F3 coverage-
 // regression gate. Empty risk → skip (a README / pure-logic PR pays nothing); non-empty → the
 // deterministic checks, scoped to what changed. Zero LLM.
 //
@@ -36,15 +36,15 @@ console.log(`impact — ${risk.changed.length} changed · ${nS} scene/prefab · 
 // 2. layered trigger: nothing wired-and-testable → skip the expensive checks
 if (!nB && !nS) { console.log('\n✅ skip — this change touches no UI surface (no gate run)'); process.exit(0); }
 
-// 3. related tests (approach A — static nodePath intersection)
-const rel = JSON.parse(sh([join(HERE, 'related-tests.mjs'), '-', join(HERE, 'tests'), '--json'], { input: JSON.stringify(risk) }));
-console.log(`related — ${rel.related.length}/${rel.related.length + rel.skipped.length} tests: ${rel.related.map((r) => r.file).join(', ') || '(none)'}`);
+// 3. affected tests (approach A — static nodePath intersection; `copse affected` is the runtime-format sibling of coir's `impact`)
+const aff = JSON.parse(sh([COPSE, 'affected', '-', join(HERE, 'tests')], { input: JSON.stringify(risk) }));
+console.log(`affected — ${aff.affected.length}/${aff.affected.length + aff.skipped.length} tests: ${aff.affected.map((r) => r.name).join(', ') || '(none)'}`);
 
 let rc = 0;
-// 4. run ONLY the related flow tests (staged into a temp dir so one `copse run` emits JUnit)
-if (rel.related.length) {
+// 4. run ONLY the affected flow tests (staged into a temp dir so one `copse run` emits JUnit)
+if (aff.affected.length) {
   const stage = mkdtempSync(join(tmpdir(), 'pr-tests-'));
-  for (const r of rel.related) copyFileSync(join(HERE, 'tests', r.file), join(stage, r.file));
+  for (const r of aff.affected) copyFileSync(join(HERE, 'tests', r.name), join(stage, r.name));
   mkdirSync(join(HERE, 'results'), { recursive: true });
   console.log('\n── related flow suite ─────────────────────────────');
   try { console.log(sh([COPSE, 'run', URL_, stage, '--junit', join(HERE, 'results/junit.xml'), ...headed])); }

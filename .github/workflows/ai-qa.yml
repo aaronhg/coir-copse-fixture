@@ -1,0 +1,113 @@
+name: AI QA (Layer 2)
+
+# Layer 2 of the canvas-QA plan — an LLM PLANS a test from a risk goal, copse drives it in real
+# Chrome, an LLM JUDGES the result; F5 freezes a stable finding into a candidate tripwire, F7 runs
+# each scenario N times so a single flaky run can't gate. It spends tokens, so it is OPT-IN: a
+# manual button (and an optional nightly), NEVER every PR. Needs ANTHROPIC_API_KEY (Settings ▸
+# Secrets ▸ Actions); without it the job says so and stops — the always-on floor is the zero-LLM
+# gate / pr-gate in ci.yml (doctor + coverage + copse affected), which never costs a token.
+#
+# What you get: a rendered detection table + token cost on the run's summary page, and a complete
+# **ai-qa-evidence** artifact — the full log, a machine-readable report.json (every run's plan +
+# trace + verdict + usage), and any frozen candidate tripwires (review, then git mv into ci/tests/).
+
+on:
+  workflow_dispatch:                       # ▸ Actions ▸ AI QA (Layer 2) ▸ Run workflow
+    inputs:
+      runs:
+        description: 'runs per scenario (F7 majority vote)'
+        default: '3'
+      scenario:
+        description: 'scenario id(s), comma-separated (blank = all four planted bugs)'
+        default: ''
+  # schedule:                              # a nightly sweep — uncomment to enable
+  #   - cron: '0 7 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  ai-qa:
+    runs-on: ubuntu-latest                 # ships google-chrome — copse's Linux default, no browser setup
+    defaults:
+      run:
+        working-directory: ci
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Trialling the flow on Haiku (cheapest). Bump to claude-sonnet-5 for sharper semantic judging,
+      # or override per-run via a repo Variable named ANTHROPIC_MODEL.
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: Preflight — API key + committed build
+        run: |
+          test -f ../build/web-mobile/index.html \
+            || (echo "::error::build/web-mobile/ missing — run Project ▸ Build (web-mobile) in Creator and commit it." && exit 1)
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            { echo "## ⏭️ AI QA skipped";
+              echo "No \`ANTHROPIC_API_KEY\` secret — Layer 2 needs one (Settings ▸ Secrets ▸ Actions).";
+              echo "The zero-LLM gate in \`ci.yml\` is the always-on floor and still runs on every push/PR."; } >> "$GITHUB_STEP_SUMMARY"
+            echo "NO_KEY=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Fetch + build copse
+        if: env.NO_KEY != '1'
+        run: |
+          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js + puppeteer-core
+
+      # copse drives Chrome via ANGLE over SwiftShader's *Vulkan* device; the runner has the loader
+      # but no software device → NULL WebGL → empty scene. mesa-vulkan-drivers supplies one. (Same
+      # fix as ci.yml — see its comment / DEVELOPMENT.md §7 for the full diagnosis.)
+      - name: Software Vulkan device for headless WebGL
+        if: env.NO_KEY != '1'
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+
+      - name: Serve + doctor + AI QA (F4 explore · F6 judge · F5 freeze · F7 ×N)
+        if: env.NO_KEY != '1'
+        env:
+          COPSE_CLI: /tmp/copse/src/cli.js
+          COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
+          COPSE_HARNESS: /tmp/copse/src/harness.js
+          URL: 'http://127.0.0.1:8899/'
+          RUNS: ${{ github.event.inputs.runs || '3' }}
+          SCENARIO: ${{ github.event.inputs.scenario }}
+        run: |
+          set -u
+          mkdir -p results candidates
+          node serve.mjs 8899 & SERVER=$!
+          trap 'kill $SERVER 2>/dev/null || true' EXIT
+          npx --yes wait-on "$URL" -t 30000
+
+          echo "::group::Boot diagnostic — copse doctor"
+          node "$COPSE_CLI" doctor "$URL" || { echo "::error::scene did not boot in copse's Chrome — see diagnostic"; exit 1; }
+          echo "::endgroup::"
+
+          SCEN=""; [ -n "${SCENARIO}" ] && SCEN="--scenario ${SCENARIO}"
+          # --fail-on missed: a flaky bug (found some runs) is reported, not red; a fully-blind bug (0/N) fails.
+          node ai-qa.mjs "$URL" --runs "$RUNS" $SCEN --freeze --report results/ai-qa-report.json --fail-on missed 2>&1 | tee results/ai-qa.log
+          RC=${PIPESTATUS[0]}
+
+          # rendered summary on the run page — the detection table + cost, no log-digging
+          {
+            echo "## AI QA — Layer 2 (F4 explore · F6 judge · F5 freeze · F7 ×${RUNS})"
+            echo '```'
+            sed -n '/── detection/,$p' results/ai-qa.log
+            echo '```'
+            echo "Full plan/trace/verdict per run + frozen candidates → the **ai-qa-evidence** artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $RC
+
+      - name: Upload evidence (log + report.json + frozen candidate tripwires)
+        if: always() && env.NO_KEY != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-qa-evidence
+          path: |
+            ci/results/ai-qa.log
+            ci/results/ai-qa-report.json
+            ci/candidates/*.json
+          if-no-files-found: warn

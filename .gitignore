@@ -39,3 +39,4 @@ extensions/
 ci/results/
 ci/coir-rows.json
 ci/node_modules/
+ci/candidates/

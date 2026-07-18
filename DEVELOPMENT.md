@@ -177,17 +177,18 @@ software rendering, and recommends **xvfb + headful**. We tried it; it still fai
 *disproved* the display hypothesis and pointed at the GL device instead — the more useful
 outcome of a failed fix is the hypothesis it kills.
 
-### 7.5 The ground-truth probe + copse boot-diag
+### 7.5 The ground-truth probe + copse doctor
 Two diagnostics ended the guessing, both printing facts instead of spinning:
 - a **standalone WebGL probe** (bare Chrome + copse's exact flags → the renderer string, plus
   `vulkaninfo`), which proved the *environment* WebGL worked after the Vulkan fix; and
-- **`ci/boot-diag.mjs`**, which connects through **copse's own Chrome** to the actual game and
-  dumps the WebGL renderer, the live scene's child count, and **the game's own console /
+- **the boot diagnostic** — first a one-off `ci/boot-diag.mjs`, since promoted into copse itself
+  as the **`copse doctor`** verb — which connects through **copse's own Chrome** to the actual
+  game and dumps the WebGL renderer, the live scene's child count, and **the game's own console /
   pageerrors** — the thing that had been invisible. It exits non-zero on an empty scene so CI
   **fails fast (~1 min) with the reason** instead of spinning copse's boot-wait ~8× (~15 min).
 
 ### 7.6 Root cause #3 — a `.gitignore` rule ate the textures (the real blocker)
-With WebGL finally working, `boot-diag` showed the truth: `WEBGL: webgl2 …SwiftShader` ✓,
+With WebGL finally working, `copse doctor` showed the truth: `WEBGL: webgl2 …SwiftShader` ✓,
 engine loaded ✓, but `SCENE: "NO-SCENE"`, and a flood of **Cocos `Error 4930`** +
 `Failed to load resource: 404` for `assets/main/native/**.png`. The textures were **404 on the
 runner**. The cause was one line in `.gitignore` — a bare `native` (from the Cocos template,
@@ -202,11 +203,11 @@ went from 24→40 tracked asset files).
 - **Reproduce faithfully before fixing.** The Docker mirror that *couldn't* reproduce the bug
   was as informative as one that could — it eliminated OS/Chrome-version as suspects.
 - **Get ground truth, don't guess.** Each layer looked identical from the outside ("scene
-  won't boot"); the WebGL probe and the copse boot-diag separated three unrelated causes.
+  won't boot"); the WebGL probe and the copse boot diagnostic separated three unrelated causes.
 - **A failed fix is a killed hypothesis.** xvfb not working is what proved it was the GL
   device, not the display.
-- **Keep the diagnostic.** `boot-diag` stayed in CI as a fast-fail guard — if the scene ever
-  fails to boot again, the log says *why* in a minute.
+- **Keep the diagnostic.** It stayed in CI as a fast-fail guard — and earned its way into copse
+  as the `copse doctor` verb, so any game gets the same one-minute "why won't it boot" answer.
 
 ---
 
@@ -245,6 +246,7 @@ install. Verified headless before shipping (the panel's `runSuite` reproduces CI
   message and a workflow comment so they can't bite the next reuse.
 - **Live**: green on `main` → the exact passing build is published to GitHub Pages.
 
-> See `README.md` for the overview and how to run it; `ci/` for the gate/suite/selftest/
-> boot-diag; and `.github/workflows/ci.yml` for the runner recipe (the comments there explain
-> *why* each non-obvious step exists).
+> See `README.md` for the overview and how to run it; `ci/` for the gate/suite/selftest (the
+> boot check and PR-scoping are now copse's `doctor` / `affected` verbs); and
+> `.github/workflows/ci.yml` for the runner recipe (the comments there explain *why* each
+> non-obvious step exists).
