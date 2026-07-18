@@ -59,6 +59,28 @@ class of defect a coverage gate is meant to surface.
 
 ## The suite — watch it catch them
 
+Every selector below addresses a node in this scene tree — coir reads it straight from the
+`.scene` file (`coir edit fixture.scene tree`), the same static pass the coverage rows come from:
+
+```text
+fixture.scene
+└─ Canvas
+   ├─ Game          · DungeonGame     ← the whole game: hp · kills · enemyHp · rollCounter/Miss/Descend
+   ├─ EnemyHpLabel  · Label
+   ├─ HpLabel       · Label
+   ├─ FloorLabel    · Label           ← bug #3: never refreshes (shown floor desyncs from state)
+   ├─ Enemy / Hero  · Sprite          ← the two fighters
+   ├─ AttackBtn     · Button  attack       ✔ covered
+   ├─ FleeBtn       · Button  (unwired)    💀 dead-button   (bug #2)
+   ├─ MenuBtn       · Button  toggleMenu   ✔ covered
+   ├─ MenuPanel  (inactive)           ← opens when MenuBtn is pressed
+   │  └─ CloseBtn   · Button  closeMenu    ⚠ interactable:false → blocked when open   (bug #1)
+   └─ RestartBtn (inactive) · Button restart    ← shown on death
+```
+
+So `Canvas/Game:DungeonGame.hp` is the `hp` field on the `Game` node's `DungeonGame` component,
+and `Canvas/MenuPanel/CloseBtn` is the ✕ inside the (initially inactive) menu panel.
+
 The flow tests are plain JSON that copse's own runner (`copse run <dir>`) drives. Every step
 carries its intent *and* its assertion, so a test reads like a description of what should happen:
 
