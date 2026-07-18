@@ -6,7 +6,7 @@
     }
   ],
   "coveredIds": [
-    "Canvas/AttackBtn::attack",
-    "Canvas/MenuBtn::toggleMenu"
+    "fixture/Canvas/AttackBtn::attack",
+    "fixture/Canvas/MenuBtn::toggleMenu"
   ]
 }

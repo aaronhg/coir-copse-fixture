@@ -1,8 +1,10 @@
 name: coir × copse gate
 
-# Two jobs, and no Cocos editor in either — the repo ships a PRE-BUILT web-mobile target
+# Three jobs, and no Cocos editor in any — the repo ships a PRE-BUILT web-mobile target
 # (commit it after `Project ▸ Build` in Creator):
-#   gate         serve build/web-mobile, run the coir×copse coverage join + copse flow suite
+#   gate         serve build/web-mobile, run the FULL coir×copse coverage join + copse flow suite
+#   pr-gate      on PRs only — the impact-SCOPED gate: `coir impact` reads the diff → skip a
+#                README/logic-only PR, else run just the related flow tests + coverage (Layer 1)
 #   deploy-demo  on main & only if the gate is green, publish that same build to GitHub Pages
 # so the hosted demo is always a build that passed the join.
 
@@ -118,6 +120,41 @@ jobs:
             ci/results/junit.xml
             ci/coir-rows.json
             ci/expected.json
+
+  # F2/F3 — the impact-SCOPED gate (Layer 1 of the canvas-QA plan). On a PR, `coir impact` reads
+  # the base…HEAD diff → the risk set; empty (README / pure-logic) → SKIP the expensive checks;
+  # non-empty → run ONLY the related flow tests (approach A: nodePath intersection) + the coverage-
+  # regression gate. Zero LLM. Runs alongside the full `gate`; make `gate` push-only if you want
+  # PRs to pay only the scoped cost.
+  pr-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ci
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }              # full history — the base…HEAD diff needs the merge-base
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Fetch coir + build copse
+        run: |
+          git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
+          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )
+      - name: Software Vulkan device for headless WebGL
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+      - name: Impact-scoped gate — skip · related tests · coverage
+        env: { COIR_CLI: /tmp/coir/src/cli.js, COPSE_CLI: /tmp/copse/src/cli.js, GAME_URL: 'http://127.0.0.1:8899/' }
+        run: |
+          set -u
+          git fetch --no-tags origin "$GITHUB_BASE_REF"
+          echo "── changed files (base…HEAD) ──"; git diff --name-only "origin/$GITHUB_BASE_REF...HEAD"
+          git diff "origin/$GITHUB_BASE_REF...HEAD" > /tmp/pr.diff
+          node serve.mjs 8899 & SERVER=$!
+          trap 'kill $SERVER 2>/dev/null || true' EXIT
+          npx --yes wait-on "$GAME_URL" -t 30000
+          node pr-gate.mjs --patch /tmp/pr.diff
 
   # Publish to GitHub Pages — ONLY after the gate is green, so the hosted demo is always a build
   # that passed the coverage join. No editor build here either: it assembles the committed
