@@ -6,7 +6,7 @@ library/
 temp/
 local/
 profiles/
-native
+/native/
 # Cocos build output is ignored — EXCEPT the web-mobile target, which we commit on
 # purpose so CI runs the gate without an editor build. (Re-build + commit it after edits.)
 /build/*
