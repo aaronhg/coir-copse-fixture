@@ -40,3 +40,5 @@ ci/results/
 ci/coir-rows.json
 ci/node_modules/
 ci/candidates/
+# arbor eval trend — throwaway in this demo; a real project commits it for regression history
+ci/qa/evals.jsonl

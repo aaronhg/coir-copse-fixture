@@ -126,9 +126,10 @@ for deterministic tests.
 
 ## CI
 
-An **editor-less** gate: `coir clickmap` (static) × `copse coverage` (live), diffed against a
-committed baseline (`expected.json`), plus the flow suite and a selftest that proves the gate can
-go red — all headless on GitHub Actions, which then publishes the passing build to Pages.
+An **editor-less** gate: `coir clickmap` (static) × copse's `clickSurface` (live), joined and
+diffed by `arbor coverage` against a committed baseline (`expected.json`), plus the flow suite and
+a selftest that proves the gate can go red — all headless on GitHub Actions, which then publishes
+the passing build to Pages.
 
 **→ [docs/CI.md](docs/CI.md)** for the mechanics, the runner recipe (why it needs a software
 Vulkan device + a boot diagnostic), and running it locally.

@@ -58,6 +58,9 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js + puppeteer-core
+      - name: Fetch arbor
+        if: env.NO_KEY != '1'
+        run: git clone --depth 1 https://github.com/aaronhg/arbor.git /tmp/arbor   # the QA runner (no build — plain JS)
 
       # copse drives Chrome via ANGLE over SwiftShader's *Vulkan* device; the runner has the loader
       # but no software device → NULL WebGL → empty scene. mesa-vulkan-drivers supplies one. (Same
@@ -69,6 +72,7 @@ jobs:
       - name: Serve + doctor + AI QA (F4 explore · F6 judge · F5 freeze · F7 ×N)
         if: env.NO_KEY != '1'
         env:
+          ARBOR_BIN: /tmp/arbor/bin/arbor.mjs
           COPSE_CLI: /tmp/copse/src/cli.js
           COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
           COPSE_HARNESS: /tmp/copse/src/harness.js
@@ -87,17 +91,19 @@ jobs:
           echo "::endgroup::"
 
           SCEN=""; [ -n "${SCENARIO}" ] && SCEN="--scenario ${SCENARIO}"
+          # arbor reads ../arbor.config.mjs (url + driver + scenarios); arbor + copse come from env (cloned into /tmp).
           # --fail-on missed: a flaky bug (found some runs) is reported, not red; a fully-blind bug (0/N) fails.
-          node ai-qa.mjs "$URL" --runs "$RUNS" $SCEN --freeze --report results/ai-qa-report.json --fail-on missed 2>&1 | tee results/ai-qa.log
+          export ARBOR_REPORT=ci/results/arbor-calibrate.json  # config-relative (repo root), like the json reporter resolves
+          node "$ARBOR_BIN" calibrate --runs "$RUNS" $SCEN --freeze --fail-on missed 2>&1 | tee results/arbor.log
           RC=${PIPESTATUS[0]}
 
           # rendered summary on the run page — the detection table + cost, no log-digging
           {
-            echo "## AI QA — Layer 2 (F4 explore · F6 judge · F5 freeze · F7 ×${RUNS})"
+            echo "## arbor calibrate — Layer 2 (F4 explore · F6 judge · F5 freeze · F7 ×${RUNS})"
             echo '```'
-            sed -n '/── detection/,$p' results/ai-qa.log
+            sed -n '/── detection/,$p' results/arbor.log
             echo '```'
-            echo "Full plan/trace/verdict per run + frozen candidates → the **ai-qa-evidence** artifact."
+            echo "Full plan/trace/verdict per run + frozen candidates → the **arbor-evidence** artifact."
           } >> "$GITHUB_STEP_SUMMARY"
           exit $RC
 
@@ -105,9 +111,9 @@ jobs:
         if: always() && env.NO_KEY != '1'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-qa-evidence
+          name: arbor-evidence
           path: |
-            ci/results/ai-qa.log
-            ci/results/ai-qa-report.json
+            ci/results/arbor.log
+            ci/results/arbor-calibrate.json
             ci/candidates/*.json
           if-no-files-found: warn

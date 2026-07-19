@@ -1,0 +1,34 @@
+{
+  "fixture": "Tiny Dungeon",
+  "total_bugs": 4,
+  "bugs": [
+    {
+      "id": "menu-close-disabled",
+      "category": "functional",
+      "severity": "high",
+      "description": "The X (Close) button inside the settings panel is disabled (interactable=false) — once the menu is open it can never be closed via its intended control.",
+      "detection_hint": "close|CloseBtn|disabled|the X|menu|can't close|cannot close|interactable"
+    },
+    {
+      "id": "flee-dead",
+      "category": "functional",
+      "severity": "high",
+      "description": "The Flee button has no wired click handler — pressing it does nothing (no new encounter begins, no game state changes).",
+      "detection_hint": "flee|FleeBtn|dead button|does nothing|no handler|inert|no effect|unwired"
+    },
+    {
+      "id": "floor-desync",
+      "category": "functional",
+      "severity": "medium",
+      "description": "The Floor label is never refreshed — after the hero descends a floor, the shown 'Floor: N' disagrees with the real .floor (the label stays at the pre-descend value).",
+      "detection_hint": "floor|FloorLabel|desync|stale|label|shown vs real|not updated|lags|Floor: 1"
+    },
+    {
+      "id": "tally-kept",
+      "category": "functional",
+      "severity": "medium",
+      "description": "The Defeated tally (.kills) is not reset on a new run — after the hero dies and Restart begins a fresh run, the count carries over instead of returning to 0.",
+      "detection_hint": "tally|Defeated|kills|reset|Restart|new run|carries over|not zero|persists"
+    }
+  ]
+}

@@ -33,6 +33,8 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
+      - name: Fetch arbor
+        run: git clone --depth 1 https://github.com/aaronhg/arbor.git /tmp/arbor   # the QA runner (no build — plain JS)
 
       # WHY the scene never booted on the runner: copse launches Chrome with
       # --use-gl=angle --use-angle=swiftshader, i.e. ANGLE over SwiftShader's *Vulkan* device.
@@ -65,8 +67,15 @@ jobs:
       # Headless is fine once a software Vulkan device exists (see the step above); copse finds
       # /usr/bin/google-chrome itself. A CI container has no display and is thrown away, so
       # SwiftShader's heat cost is moot.
-      - name: Serve + coir clickmap + flow suite + gate + selftest
-        env: { COPSE_CLI: /tmp/copse/src/cli.js, URL: 'http://127.0.0.1:8899/' }
+      - name: Serve + doctor + arbor gate (coverage · flow suite · visual · selftest)
+        # arbor reads ../arbor.config.mjs (url/scene/baselines); arbor/copse/coir all come from env (cloned into /tmp).
+        env:
+          ARBOR_BIN: /tmp/arbor/bin/arbor.mjs
+          COPSE_CLI: /tmp/copse/src/cli.js
+          COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
+          COPSE_HARNESS: /tmp/copse/src/harness.js
+          COIR_CLI: /tmp/coir/src/cli.js
+          URL: 'http://127.0.0.1:8899/'
         run: |
           set -u
           mkdir -p results
@@ -74,31 +83,30 @@ jobs:
           trap 'kill $SERVER 2>/dev/null || true' EXIT
           npx --yes wait-on "$URL" -t 30000
 
-          # Boot diagnostic through copse's OWN Chrome (`copse doctor`, not a standalone probe): dumps
-          # the WebGL renderer, the live scene's child count, and the GAME's console/pageerrors. If the
-          # scene never populates it exits non-zero so we fail FAST here with the diagnosis, instead of
-          # letting copse's boot-wait spin ~8× across the suite/gate/selftest (~15 min of nothing).
+          # Boot diagnostic through copse's OWN Chrome (`copse doctor`): WebGL renderer + live scene child
+          # count + the GAME's console/pageerrors. Exits non-zero on an empty scene so we fail FAST here.
           echo "::group::Boot diagnostic — copse doctor: WebGL + scene + game console"
           node "$COPSE_CLI" doctor "$URL" && diag=0 || diag=$?
           echo "::endgroup::"
           if [ "$diag" != 0 ]; then echo "::error::scene did not boot in copse's Chrome (exit $diag) — see boot diagnostic above"; exit 1; fi
 
           rc=0
+          A="node $ARBOR_BIN"
 
-          echo "::group::coir — the static ClickEvent map (coir clickmap)"
-          node /tmp/coir/src/cli.js -C .. clickmap scene/fixture.scene -o json > coir-rows.json || rc=1
+          echo "::group::Coverage gate — arbor coverage (coir clickmap × copse clickSurface, joined in arbor, vs baseline)"
+          $A coverage || rc=1
           echo "::endgroup::"
 
           echo "::group::Flow suite — copse's own runner (copse run <dir> --junit)"
           node "$COPSE_CLI" run "$URL" tests --junit results/junit.xml || rc=1
           echo "::endgroup::"
 
-          echo "::group::Coverage gate — the coir × copse join (green / red-on-regression)"
-          node gate.mjs --url="$URL" || rc=1
+          echo "::group::Visual baseline — arbor visual (golden pixel signatures)"
+          $A visual || rc=1
           echo "::endgroup::"
 
-          echo "::group::Selftest — prove the gate can actually go red"
-          node selftest.mjs --url="$URL" || rc=1
+          echo "::group::Selftest — arbor coverage --selftest (prove the gate can go red)"
+          $A coverage --selftest || rc=1
           echo "::endgroup::"
 
           exit $rc
@@ -137,15 +145,21 @@ jobs:
         with: { fetch-depth: 0 }              # full history — the base…HEAD diff needs the merge-base
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: Fetch coir + build copse
+      - name: Fetch coir + build copse + arbor
         run: |
           git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )
+          git clone --depth 1 https://github.com/aaronhg/arbor.git /tmp/arbor   # the QA runner (no build — plain JS)
       - name: Software Vulkan device for headless WebGL
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
-      - name: Impact-scoped gate — skip · related tests · coverage
-        env: { COIR_CLI: /tmp/coir/src/cli.js, COPSE_CLI: /tmp/copse/src/cli.js, GAME_URL: 'http://127.0.0.1:8899/' }
+      - name: Impact-scoped gate — arbor gate (skip · affected tests · coverage)
+        env:
+          ARBOR_BIN: /tmp/arbor/bin/arbor.mjs
+          COIR_CLI: /tmp/coir/src/cli.js
+          COPSE_CLI: /tmp/copse/src/cli.js
+          COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
+          COPSE_HARNESS: /tmp/copse/src/harness.js
         run: |
           set -u
           git fetch --no-tags origin "$GITHUB_BASE_REF"
@@ -153,8 +167,8 @@ jobs:
           git diff "origin/$GITHUB_BASE_REF...HEAD" > /tmp/pr.diff
           node serve.mjs 8899 & SERVER=$!
           trap 'kill $SERVER 2>/dev/null || true' EXIT
-          npx --yes wait-on "$GAME_URL" -t 30000
-          node pr-gate.mjs --patch /tmp/pr.diff
+          npx --yes wait-on "http://127.0.0.1:8899/" -t 30000
+          node "$ARBOR_BIN" gate --patch /tmp/pr.diff
 
   # Publish to GitHub Pages — ONLY after the gate is green, so the hosted demo is always a build
   # that passed the coverage join. No editor build here either: it assembles the committed

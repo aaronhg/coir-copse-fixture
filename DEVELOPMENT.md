@@ -44,7 +44,7 @@ the intersection:
 | — | pressable, no serialized handler | **dead button** (`method:null`) |
 
 coir emits its half with `coir clickmap <scene> -o json` → `[{nodePath, method, component}]`;
-copse consumes it with `copse coverage <url> rows.json`.
+copse supplies the live half (`clickSurface`), and **arbor** joins the two (`arbor coverage`).
 
 ---
 
@@ -221,7 +221,7 @@ It doesn't just upload the game — it **assembles an in-browser test panel** on
 in-page engine (`window.__copse`) does `press`/`get`/`patch`/`clickSurface` entirely
 client-side; only the puppeteer/Node half is transport, and none of that is needed in a browser.
 So the deploy copies `copse.inject.js` + the flow scripts + coir's static rows next to the build
-and injects `demo/testpanel.js` (which inlines copse's own `subsetMatch` + `coverageJoin`). The
+and injects `demo/testpanel.js` (which inlines copse's `subsetMatch` + arbor's `coverageJoin`). The
 result: a **▶ Run the suite** button on the live page that drives the game in the visitor's own
 browser and renders the same pass/fail + coverage verdict the CI gate computes — no backend, no
 install. Verified headless before shipping (the panel's `runSuite` reproduces CI's `4/4 · covered:2
@@ -233,8 +233,8 @@ install. Verified headless before shipping (the panel's `runSuite` reproduces CI
 
 - **The game**: one Cocos 3.8 scene (`assets/scene/fixture.scene`) + one component
   (`assets/scripts/DungeonGame.ts`), all-CC0 Kenney art (md5-verified), four buried UI bugs.
-- **The join**: `coir clickmap` (static ClickEvent rows) × `copse coverage` (live
-  reachability), meeting on `(nodePath, method)` — a key that survives release minification.
+- **The join**: `coir clickmap` (static ClickEvent rows) × copse's `clickSurface` (live
+  reachability), joined by **arbor**, meeting on `(nodePath, method)` — a key that survives release minification.
 - **The gate** (`ci/`): baseline-diffed coverage (`gate.mjs` vs `expected.json`), a copse-run
   flow suite (1 green + 3 bug tripwires → JUnit), a selftest that proves the gate can go red,
   and a fast-fail boot diagnostic — all in one server-lifetime step.
@@ -247,6 +247,6 @@ install. Verified headless before shipping (the panel's `runSuite` reproduces CI
 - **Live**: green on `main` → the exact passing build is published to GitHub Pages.
 
 > See `README.md` for the overview and how to run it; `ci/` for the gate/suite/selftest (the
-> boot check and PR-scoping are now copse's `doctor` / `affected` verbs); and
+> boot check is now copse's `doctor` verb, and PR-scoping is now `arbor gate`); and
 > `.github/workflows/ci.yml` for the runner recipe (the comments there explain *why* each
 > non-obvious step exists).
