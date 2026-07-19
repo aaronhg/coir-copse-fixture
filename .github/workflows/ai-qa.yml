@@ -60,7 +60,7 @@ jobs:
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js + puppeteer-core
       - name: Fetch arbor
         if: env.NO_KEY != '1'
-        run: git clone --depth 1 https://github.com/aaronhg/arbor.git /tmp/arbor   # the QA runner (no build — plain JS)
+        run: git clone --depth 1 https://github.com/aaronhg/arbor.git "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
 
       # copse drives Chrome via ANGLE over SwiftShader's *Vulkan* device; the runner has the loader
       # but no software device → NULL WebGL → empty scene. mesa-vulkan-drivers supplies one. (Same
@@ -72,7 +72,7 @@ jobs:
       - name: Serve + doctor + AI QA (F4 explore · F6 judge · F5 freeze · F7 ×N)
         if: env.NO_KEY != '1'
         env:
-          ARBOR_BIN: /tmp/arbor/bin/arbor.mjs
+          ARBOR_BIN: ../../arbor/bin/arbor.mjs
           COPSE_CLI: /tmp/copse/src/cli.js
           COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
           COPSE_HARNESS: /tmp/copse/src/harness.js
@@ -91,7 +91,7 @@ jobs:
           echo "::endgroup::"
 
           SCEN=""; [ -n "${SCENARIO}" ] && SCEN="--scenario ${SCENARIO}"
-          # arbor reads ../arbor.config.mjs (url + driver + scenarios); arbor + copse come from env (cloned into /tmp).
+          # arbor reads ../arbor.config.mjs (url + driver + scenarios). arbor is a SIBLING clone (its ../arbor import); copse is in /tmp via env.
           # --fail-on missed: a flaky bug (found some runs) is reported, not red; a fully-blind bug (0/N) fails.
           export ARBOR_REPORT=ci/results/arbor-calibrate.json  # config-relative (repo root), like the json reporter resolves
           node "$ARBOR_BIN" calibrate --runs "$RUNS" $SCEN --freeze --fail-on missed 2>&1 | tee results/arbor.log

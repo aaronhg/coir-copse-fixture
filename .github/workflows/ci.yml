@@ -34,7 +34,7 @@ jobs:
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
       - name: Fetch arbor
-        run: git clone --depth 1 https://github.com/aaronhg/arbor.git /tmp/arbor   # the QA runner (no build — plain JS)
+        run: git clone --depth 1 https://github.com/aaronhg/arbor.git "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
 
       # WHY the scene never booted on the runner: copse launches Chrome with
       # --use-gl=angle --use-angle=swiftshader, i.e. ANGLE over SwiftShader's *Vulkan* device.
@@ -68,9 +68,10 @@ jobs:
       # /usr/bin/google-chrome itself. A CI container has no display and is thrown away, so
       # SwiftShader's heat cost is moot.
       - name: Serve + doctor + arbor gate (coverage · flow suite · visual · selftest)
-        # arbor reads ../arbor.config.mjs (url/scene/baselines); arbor/copse/coir all come from env (cloned into /tmp).
+        # arbor reads ../arbor.config.mjs (url/scene/baselines). arbor is cloned as a SIBLING of the checkout
+        # (so the config's ../arbor import resolves); copse/coir live in /tmp and come from the *_CLI/DRIVER env.
         env:
-          ARBOR_BIN: /tmp/arbor/bin/arbor.mjs
+          ARBOR_BIN: ../../arbor/bin/arbor.mjs
           COPSE_CLI: /tmp/copse/src/cli.js
           COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
           COPSE_HARNESS: /tmp/copse/src/harness.js
@@ -150,12 +151,12 @@ jobs:
           git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
           git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
           ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )
-          git clone --depth 1 https://github.com/aaronhg/arbor.git /tmp/arbor   # the QA runner (no build — plain JS)
+          git clone --depth 1 https://github.com/aaronhg/arbor.git "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
       - name: Software Vulkan device for headless WebGL
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
       - name: Impact-scoped gate — arbor gate (skip · affected tests · coverage)
         env:
-          ARBOR_BIN: /tmp/arbor/bin/arbor.mjs
+          ARBOR_BIN: ../../arbor/bin/arbor.mjs
           COIR_CLI: /tmp/coir/src/cli.js
           COPSE_CLI: /tmp/copse/src/cli.js
           COPSE_DRIVER: /tmp/copse/src/drivers/puppeteer.js
