@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Load pinned tool versions   # ci/pins.env is the single source of truth
-        run: cat ci/pins.env >> "$GITHUB_ENV"
+        run: cat "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
 
@@ -58,11 +58,11 @@ jobs:
       - name: Fetch + build copse
         if: env.NO_KEY != '1'
         run: |
-          ./ci/fetch-tool.sh copse "$COPSE_SHA" /tmp/copse
+          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js + puppeteer-core
       - name: Fetch arbor
         if: env.NO_KEY != '1'
-        run: ./ci/fetch-tool.sh arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
+        run: "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
 
       # copse drives Chrome via ANGLE over SwiftShader's *Vulkan* device; the runner has the loader
       # but no software device → NULL WebGL → empty scene. mesa-vulkan-drivers supplies one. (Same
