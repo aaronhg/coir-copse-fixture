@@ -1,0 +1,19 @@
+{
+  "comment": "The CC0 Tiny Dungeon fixture's own UI vocabulary + Kenney CC0 asset-pack names. This repo IS the demo fixture, so its game vocabulary is by definition its own. Consumed by ~/.claude/skills/de-id/scan.mjs.",
+  "safe": [
+    "AttackBtn",
+    "CloseBtn",
+    "FleeBtn",
+    "FloatText",
+    "FloorLabel",
+    "GoldLabel",
+    "HomeRow",
+    "JavaScript",
+    "MenuBtn",
+    "MenuPanel",
+    "RestartBtn",
+    "ReturnRow",
+    "StarRow",
+    "WebStorm"
+  ]
+}

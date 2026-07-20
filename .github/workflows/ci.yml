@@ -18,6 +18,8 @@ jobs:
         working-directory: ci
     steps:
       - uses: actions/checkout@v4
+      - name: Load pinned tool versions   # ci/pins.env is the single source of truth
+        run: cat ci/pins.env >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
 
@@ -28,13 +30,13 @@ jobs:
       # The two tools under test. Public repos assumed; if yours are private, add a PAT:
       #   git clone https://x-access-token:${{ secrets.TOOLS_PAT }}@github.com/<you>/coir.git
       - name: Fetch coir
-        run: git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
+        run: ./ci/fetch-tool.sh coir "$COIR_SHA" /tmp/coir
       - name: Fetch + build copse
         run: |
-          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          ./ci/fetch-tool.sh copse "$COPSE_SHA" /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
       - name: Fetch arbor
-        run: git clone --depth 1 https://github.com/aaronhg/arbor.git "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
+        run: ./ci/fetch-tool.sh arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
 
       # WHY the scene never booted on the runner: copse launches Chrome with
       # --use-gl=angle --use-angle=swiftshader, i.e. ANGLE over SwiftShader's *Vulkan* device.
@@ -144,14 +146,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }              # full history — the base…HEAD diff needs the merge-base
+      - name: Load pinned tool versions   # ci/pins.env is the single source of truth
+        run: cat ci/pins.env >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Fetch coir + build copse + arbor
         run: |
-          git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
-          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          ./ci/fetch-tool.sh coir "$COIR_SHA" /tmp/coir
+          ./ci/fetch-tool.sh copse "$COPSE_SHA" /tmp/copse
           ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )
-          git clone --depth 1 https://github.com/aaronhg/arbor.git "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
+          ./ci/fetch-tool.sh arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
       - name: Software Vulkan device for headless WebGL
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
       - name: Impact-scoped gate — arbor gate (skip · affected tests · coverage)
@@ -188,13 +192,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Load pinned tool versions   # ci/pins.env is the single source of truth
+        run: cat ci/pins.env >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Assemble demo site (game + in-browser suite)
         run: |
           set -eu
-          git clone --depth 1 https://github.com/aaronhg/coir.git /tmp/coir
-          git clone --depth 1 https://github.com/aaronhg/copse.git /tmp/copse
+          ./ci/fetch-tool.sh coir "$COIR_SHA" /tmp/coir
+          ./ci/fetch-tool.sh copse "$COPSE_SHA" /tmp/copse
           ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )   # -> dist/copse.inject.js
           SITE=_site
           cp -r build/web-mobile "$SITE"                         # the game (relative paths → runs from the /<repo>/ subpath)
