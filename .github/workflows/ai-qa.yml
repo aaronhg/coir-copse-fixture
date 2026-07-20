@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Load pinned tool versions   # ci/pins.env is the single source of truth
-        run: cat "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"
+        run: grep -E '^[A-Z_]+=' "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"   # $GITHUB_ENV takes KEY=value only — no comments, no blanks
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
 

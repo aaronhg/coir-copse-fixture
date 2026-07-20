@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Load pinned tool versions   # ci/pins.env is the single source of truth
-        run: cat "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"
+        run: grep -E '^[A-Z_]+=' "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"   # $GITHUB_ENV takes KEY=value only — no comments, no blanks
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
 
@@ -147,7 +147,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }              # full history — the base…HEAD diff needs the merge-base
       - name: Load pinned tool versions   # ci/pins.env is the single source of truth
-        run: cat "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"
+        run: grep -E '^[A-Z_]+=' "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"   # $GITHUB_ENV takes KEY=value only — no comments, no blanks
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Fetch coir + build copse + arbor
@@ -193,7 +193,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Load pinned tool versions   # ci/pins.env is the single source of truth
-        run: cat "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"
+        run: grep -E '^[A-Z_]+=' "$GITHUB_WORKSPACE/ci/pins.env" >> "$GITHUB_ENV"   # $GITHUB_ENV takes KEY=value only — no comments, no blanks
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - name: Assemble demo site (game + in-browser suite)
