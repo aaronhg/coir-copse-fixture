@@ -30,13 +30,13 @@ jobs:
       # The two tools under test. Public repos assumed; if yours are private, add a PAT:
       #   git clone https://x-access-token:${{ secrets.TOOLS_PAT }}@github.com/<you>/coir.git
       - name: Fetch coir
-        run: "$GITHUB_WORKSPACE/ci/fetch-tool.sh" coir "$COIR_SHA" /tmp/coir
+        run: bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" coir "$COIR_SHA" /tmp/coir
       - name: Fetch + build copse
         run: |
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js
       - name: Fetch arbor
-        run: "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
+        run: bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
 
       # WHY the scene never booted on the runner: copse launches Chrome with
       # --use-gl=angle --use-angle=swiftshader, i.e. ANGLE over SwiftShader's *Vulkan* device.
@@ -152,10 +152,10 @@ jobs:
         with: { node-version: '22' }
       - name: Fetch coir + build copse + arbor
         run: |
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" coir "$COIR_SHA" /tmp/coir
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" coir "$COIR_SHA" /tmp/coir
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
           ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
       - name: Software Vulkan device for headless WebGL
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
       - name: Impact-scoped gate — arbor gate (skip · affected tests · coverage)
@@ -199,8 +199,8 @@ jobs:
       - name: Assemble demo site (game + in-browser suite)
         run: |
           set -eu
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" coir "$COIR_SHA" /tmp/coir
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" coir "$COIR_SHA" /tmp/coir
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
           ( cd /tmp/copse && npm install --no-audit --no-fund && npm run build )   # -> dist/copse.inject.js
           SITE=_site
           cp -r build/web-mobile "$SITE"                         # the game (relative paths → runs from the /<repo>/ subpath)

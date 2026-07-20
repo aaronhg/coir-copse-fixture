@@ -58,11 +58,11 @@ jobs:
       - name: Fetch + build copse
         if: env.NO_KEY != '1'
         run: |
-          "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
+          bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" copse "$COPSE_SHA" /tmp/copse
           cd /tmp/copse && npm install --no-audit --no-fund && npm run build   # -> dist/copse.inject.js + puppeteer-core
       - name: Fetch arbor
         if: env.NO_KEY != '1'
-        run: "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
+        run: bash "$GITHUB_WORKSPACE/ci/fetch-tool.sh" arbor "$ARBOR_SHA" "$GITHUB_WORKSPACE/../arbor"   # sibling of the checkout, so arbor.config.mjs's ../arbor import resolves (as it does locally)
 
       # copse drives Chrome via ANGLE over SwiftShader's *Vulkan* device; the runner has the loader
       # but no software device → NULL WebGL → empty scene. mesa-vulkan-drivers supplies one. (Same
